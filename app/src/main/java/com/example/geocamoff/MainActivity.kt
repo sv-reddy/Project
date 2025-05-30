@@ -11,7 +11,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -21,7 +20,6 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 100
-        private const val REQUEST_CODE_CAMERA = 101
         private const val REQUEST_CODE_OVERLAY = 102
     }
 
@@ -92,6 +90,7 @@ class MainActivity : AppCompatActivity() {
         // Add Android 14+ specific permissions
         if (Build.VERSION.SDK_INT >= 34) {
             permissions.add("android.permission.FOREGROUND_SERVICE_CAMERA")
+            permissions.add("android.permission.FOREGROUND_SERVICE_LOCATION")
         }
 
         // Add notification permission for Android 13+
