@@ -23,7 +23,6 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 100
-        private const val REQUEST_CODE_CAMERA = 101
         private const val REQUEST_CODE_OVERLAY = 102
     }
 
@@ -118,6 +117,7 @@ class MainActivity : AppCompatActivity() {
         // Add Android 14+ specific permissions
         if (Build.VERSION.SDK_INT >= 34) {
             permissions.add("android.permission.FOREGROUND_SERVICE_CAMERA")
+            permissions.add("android.permission.FOREGROUND_SERVICE_LOCATION")
             permissions.add("android.permission.FOREGROUND_SERVICE_LOCATION")
         }
 
