@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
@@ -50,20 +51,70 @@ class MainActivity : AppCompatActivity() {
                 showPermissionDialogIfNeeded()
             }
         }
-
         setupNavigation()
         showPermissionDialogIfNeeded()
+        // Add a delay and recheck permissions (for debugging)
+        findViewById<View>(android.R.id.content).postDelayed({
+            checkAllPermissions()
+        }, 2000)
     }
 
-    private fun showPermissionDialogIfNeeded() {        val needsOverlay = !Settings.canDrawOverlays(this)
+    private fun checkAllPermissions() {
+        val overlay = Settings.canDrawOverlays(this)
+        val camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        val location = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else true
+        val backgroundLocation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+        } else true
+
+        Log.d("MainActivity", "=== Current Permission Status ===")
+        Log.d("MainActivity", "Overlay: $overlay")
+        Log.d("MainActivity", "Camera: $camera")
+        Log.d("MainActivity", "Location: $location")
+        Log.d("MainActivity", "Notification: $notification")
+        Log.d("MainActivity", "Background Location: $backgroundLocation")
+        Log.d("MainActivity", "All granted: ${overlay && camera && location && notification && backgroundLocation}")
+    }
+
+    private fun showPermissionDialogIfNeeded() {
+        val needsOverlay = !Settings.canDrawOverlays(this)
         val needsCamera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
         val needsLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-        
-        if (!needsOverlay && !needsCamera && !needsLocation) {
-            requestRequiredPermissions()
+
+        // Check additional permissions based on Android version
+        val needsNotification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        } else false
+
+        // Background location can only be requested if fine location is already granted
+        val needsBackgroundLocation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !needsLocation) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
+        } else false
+
+        // Debug logging
+        Log.d("MainActivity", "Permission Status:")
+        Log.d("MainActivity", "Overlay: ${if (needsOverlay) "MISSING" else "GRANTED"}")
+        Log.d("MainActivity", "Camera: ${if (needsCamera) "MISSING" else "GRANTED"}")
+        Log.d("MainActivity", "Location: ${if (needsLocation) "MISSING" else "GRANTED"}")
+        Log.d("MainActivity", "Notification: ${if (needsNotification) "MISSING" else "GRANTED"}")
+        Log.d("MainActivity", "Background Location: ${if (needsBackgroundLocation) "MISSING" else "GRANTED"}")
+
+        // If all essential permissions are granted, start the service directly
+        // Note: Background location is not essential for basic functionality
+        if (!needsOverlay && !needsCamera && !needsLocation && !needsNotification) {
+            Log.d("MainActivity", "All essential permissions granted, starting service")
+            startCameraDetectionService()
+
+            // Request background location separately if needed
+            if (needsBackgroundLocation) {
+                requestBackgroundLocationLater()
+            }
             return
         }
-        
+
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_permission_request, null)
         val message = dialogView.findViewById<TextView>(R.id.permission_message)
         val btnGrant = dialogView.findViewById<Button>(R.id.btn_grant)
@@ -71,13 +122,17 @@ class MainActivity : AppCompatActivity() {
         if (needsOverlay) needed.add("Display over other apps")
         if (needsCamera) needed.add("Camera")
         if (needsLocation) needed.add("Location")
+        if (needsNotification) needed.add("Notifications")
+        // Don't include background location in initial dialog - handle it separately
+
         message.text = "This app needs the following permissions to function:\n\n${needed.joinToString("\n")}\n\nPlease grant them in the next steps."
-        
+
+        // Show toast with missing permissions for debugging
+        Toast.makeText(this, "Missing permissions: ${needed.joinToString(", ")}", Toast.LENGTH_LONG).show()
         val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
             .setCancelable(false)
             .create()
-
         btnGrant.setOnClickListener {
             dialog.dismiss()
             if (needsOverlay) {
@@ -87,7 +142,7 @@ class MainActivity : AppCompatActivity() {
                 requestRequiredPermissions()
             }
         }
-        
+
         dialog.show()
     }
 
@@ -110,12 +165,13 @@ class MainActivity : AppCompatActivity() {
         openFragment(StatusFragment())
     }
 
-    private fun requestRequiredPermissions() {        val permissions = mutableListOf(
+    private fun requestRequiredPermissions() {
+        val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.CAMERA
         )
-        
+
         // Add Android 14+ specific permissions
         if (Build.VERSION.SDK_INT >= 34) {
             permissions.add("android.permission.FOREGROUND_SERVICE_CAMERA")
@@ -127,24 +183,40 @@ class MainActivity : AppCompatActivity() {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        // Add background location for Android 10+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            permissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
+        // Don't add background location here - handle it separately after foreground location is granted
 
         val notGranted = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
 
         if (notGranted.isNotEmpty()) {
+            Log.d("MainActivity", "Requesting permissions: ${notGranted.joinToString(", ")}")
             ActivityCompat.requestPermissions(this, notGranted.toTypedArray(), REQUEST_CODE_PERMISSIONS)
         } else {
+            Log.d("MainActivity", "All basic permissions granted, starting service")
             startCameraDetectionService()
+            // Request background location separately if needed
+            requestBackgroundLocationLater()
         }
     }
 
     private fun startCameraDetectionService() {
         startService(Intent(this, CameraDetectionService::class.java))
+    }
+
+    private fun requestBackgroundLocationLater() {
+        // Request background location permission after a delay to ensure foreground location is established
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            findViewById<View>(android.R.id.content).postDelayed({
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                        REQUEST_CODE_PERMISSIONS + 1
+                    )
+                }
+            }, 3000) // Wait 3 seconds before requesting background location
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -156,7 +228,10 @@ class MainActivity : AppCompatActivity() {
         when (requestCode) {
             REQUEST_CODE_PERMISSIONS -> {
                 if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                    Log.d("MainActivity", "All basic permissions granted")
                     startCameraDetectionService()
+                    // Request background location separately
+                    requestBackgroundLocationLater()
                 } else {
                     // Show rationale and re-request if denied
                     val denied = permissions.zip(grantResults.toTypedArray())
@@ -165,7 +240,7 @@ class MainActivity : AppCompatActivity() {
                     val rationale = denied.joinToString(", ") { perm ->
                         when (perm) {
                             Manifest.permission.CAMERA -> "Camera"
-                            Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION -> "Location"
+                            Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION -> "Location"
                             Manifest.permission.POST_NOTIFICATIONS -> "Notifications"
                             else -> perm
                         }
@@ -179,12 +254,23 @@ class MainActivity : AppCompatActivity() {
                         .show()
                 }
             }
+            REQUEST_CODE_PERMISSIONS + 1 -> {
+                // Background location permission result
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d("MainActivity", "Background location permission granted")
+                    Toast.makeText(this, "Background location access granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    Log.d("MainActivity", "Background location permission denied")
+                    Toast.makeText(this, "Background location denied - some features may be limited", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_CODE_OVERLAY) {            if (Settings.canDrawOverlays(this)) {
+        if (requestCode == REQUEST_CODE_OVERLAY) {
+            if (Settings.canDrawOverlays(this)) {
                 requestRequiredPermissions()
             } else {
                 AlertDialog.Builder(this)
