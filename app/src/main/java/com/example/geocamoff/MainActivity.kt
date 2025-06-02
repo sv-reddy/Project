@@ -55,14 +55,15 @@ class MainActivity : AppCompatActivity() {
         showPermissionDialogIfNeeded()
     }
 
-    private fun showPermissionDialogIfNeeded() {
-        val needsOverlay = !Settings.canDrawOverlays(this)
+    private fun showPermissionDialogIfNeeded() {        val needsOverlay = !Settings.canDrawOverlays(this)
         val needsCamera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
         val needsLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+        
         if (!needsOverlay && !needsCamera && !needsLocation) {
             requestRequiredPermissions()
             return
         }
+        
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_permission_request, null)
         val message = dialogView.findViewById<TextView>(R.id.permission_message)
         val btnGrant = dialogView.findViewById<Button>(R.id.btn_grant)
@@ -71,7 +72,8 @@ class MainActivity : AppCompatActivity() {
         if (needsCamera) needed.add("Camera")
         if (needsLocation) needed.add("Location")
         message.text = "This app needs the following permissions to function:\n\n${needed.joinToString("\n")}\n\nPlease grant them in the next steps."
-          val dialog = AlertDialog.Builder(this)
+        
+        val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
             .setCancelable(false)
             .create()
@@ -108,16 +110,15 @@ class MainActivity : AppCompatActivity() {
         openFragment(StatusFragment())
     }
 
-    private fun requestRequiredPermissions() {
-        val permissions = mutableListOf(
+    private fun requestRequiredPermissions() {        val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.CAMERA
         )
+        
         // Add Android 14+ specific permissions
         if (Build.VERSION.SDK_INT >= 34) {
             permissions.add("android.permission.FOREGROUND_SERVICE_CAMERA")
-            permissions.add("android.permission.FOREGROUND_SERVICE_LOCATION")
             permissions.add("android.permission.FOREGROUND_SERVICE_LOCATION")
         }
 
@@ -183,14 +184,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_CODE_OVERLAY) {
-            if (Settings.canDrawOverlays(this)) {
+        if (requestCode == REQUEST_CODE_OVERLAY) {            if (Settings.canDrawOverlays(this)) {
                 requestRequiredPermissions()
             } else {
                 AlertDialog.Builder(this)
                     .setTitle("Overlay Permission Required")
                     .setMessage("Overlay permission is required for warning displays. Please enable it in system settings.")
-                    .setCancelable(false)                    .setPositiveButton("Try Again") { _, _ ->
+                    .setCancelable(false)
+                    .setPositiveButton("Try Again") { _, _ ->
                         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
                         startActivityForResultLauncher.launch(intent)
                     }
