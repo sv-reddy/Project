@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">geocamoff</string>
+    <string name="permission_dialog_message">This app needs the following permissions to function:
+
+%1$s
+
+Please grant them in the next steps.</string>
 </resources>

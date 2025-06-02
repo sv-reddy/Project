@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
@@ -25,13 +26,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 100
         private const val REQUEST_CODE_OVERLAY = 102
-    }
-
-    private enum class PermissionType {
-        OVERLAY,
-        NOTIFICATION,
-        BACKGROUND_LOCATION,
-        RUNTIME
     }
 
     private lateinit var startActivityForResultLauncher: ActivityResultLauncher<Intent>
@@ -43,7 +37,7 @@ class MainActivity : AppCompatActivity() {
         // Initialize the activity result launcher
         startActivityForResultLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
-        ) { result ->
+        ) { _ ->
             // Handle overlay permission result
             if (Settings.canDrawOverlays(this)) {
                 requestRequiredPermissions()
@@ -125,7 +119,8 @@ class MainActivity : AppCompatActivity() {
         if (needsNotification) needed.add("Notifications")
         // Don't include background location in initial dialog - handle it separately
 
-        message.text = "This app needs the following permissions to function:\n\n${needed.joinToString("\n")}\n\nPlease grant them in the next steps."
+        // Move the message to resources
+        message.text = getString(R.string.permission_dialog_message, needed.joinToString("\n"))
 
         // Show toast with missing permissions for debugging
         Toast.makeText(this, "Missing permissions: ${needed.joinToString(", ")}", Toast.LENGTH_LONG).show()
@@ -136,7 +131,7 @@ class MainActivity : AppCompatActivity() {
         btnGrant.setOnClickListener {
             dialog.dismiss()
             if (needsOverlay) {
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:$packageName".toUri())
                 startActivityForResultLauncher.launch(intent)
             } else {
                 requestRequiredPermissions()
@@ -267,6 +262,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @Deprecated("Deprecated in Java. Use ActivityResultLauncher instead.")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE_OVERLAY) {
@@ -278,7 +274,7 @@ class MainActivity : AppCompatActivity() {
                     .setMessage("Overlay permission is required for warning displays. Please enable it in system settings.")
                     .setCancelable(false)
                     .setPositiveButton("Try Again") { _, _ ->
-                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
+                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:$packageName".toUri())
                         startActivityForResultLauncher.launch(intent)
                     }
                     .setNegativeButton("Exit") { _, _ -> finish() }
