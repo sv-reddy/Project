@@ -287,22 +287,29 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.nav_host_fragment, fragment)
             .commit()
-    }
-
-    override fun onResume() {
+    }    override fun onResume() {
         super.onResume()
+        Log.d("MainActivity", "onResume() - stopping camera detection service")
+        
         // Stop camera detection when app is in foreground
-        // This is the correct and standard way to stop a service by class in Android.
-        // No extras are needed unless your service expects them for shutdown logic.
-        stopService(Intent(this, CameraDetectionService::class.java))
+        try {
+            stopService(Intent(this, CameraDetectionService::class.java))
+        } catch (e: Exception) {
+            Log.w("MainActivity", "Error stopping CameraDetectionService: ${e.message}", e)
+        }
+        
         if (intent?.getBooleanExtra("start_overlay", false) == true) {
-            startService(Intent(this, OverlayService::class.java))
+            try {
+                startService(Intent(this, OverlayService::class.java))
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error starting OverlayService: ${e.message}", e)
+            }
             intent.removeExtra("start_overlay")
         }
-    }
-
-    override fun onPause() {
+    }    override fun onPause() {
         super.onPause()
+        Log.d("MainActivity", "onPause() - checking permissions and starting camera detection")
+        
         // Start camera detection when app goes to background, if permissions are granted
         val overlay = Settings.canDrawOverlays(this)
         val camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -310,8 +317,16 @@ class MainActivity : AppCompatActivity() {
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         } else true
+        
         if (overlay && camera && location && notification) {
-            startService(Intent(this, CameraDetectionService::class.java))
+            try {
+                Log.d("MainActivity", "Starting CameraDetectionService")
+                startService(Intent(this, CameraDetectionService::class.java))
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error starting CameraDetectionService: ${e.message}", e)
+            }
+        } else {
+            Log.d("MainActivity", "Not starting service - missing permissions. Overlay: $overlay, Camera: $camera, Location: $location, Notification: $notification")
         }
     }
 }

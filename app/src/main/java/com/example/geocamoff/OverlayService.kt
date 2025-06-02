@@ -38,11 +38,14 @@ class OverlayService : Service() {
             stopSelf()
             return
         }
+        
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
-
+        
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater        // Initialize the overlay view
+        val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
+        
+        // Initialize the overlay view
         overlayView = inflater.inflate(R.layout.overlay_layout, null)
         overlayView?.findViewById<TextView>(R.id.textViewOverlayMessage)?.text =
             "⚠️ CAUTION!\nThis is a RESTRICTED ZONE.\nClose the camera."
@@ -53,13 +56,14 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-            WindowManager.LayoutParams.FLAG_DIM_BEHIND,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or            WindowManager.LayoutParams.FLAG_DIM_BEHIND,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.CENTER
             dimAmount = 0.7f
-        }        // Make overlay truly immersive (hide nav/status bars)
+        }
+        
+        // Make overlay truly immersive (hide nav/status bars)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             overlayView?.let { view ->
                 view.windowInsetsController?.let { controller ->
@@ -120,25 +124,35 @@ class OverlayService : Service() {
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    }    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return START_STICKY
     }
-
-    override fun onDestroy() {        if (overlayView != null) {
+    
+    override fun onDestroy() {
+        Log.d("OverlayService", "onDestroy called")
+        
+        if (overlayView != null) {
             try {
                 windowManager?.removeView(overlayView)
+                Log.d("OverlayService", "Overlay view removed successfully")
             } catch (e: Exception) {
-                // Ignore if view is already removed
+                Log.w("OverlayService", "Error removing overlay view: ${e.message}", e)
+            } finally {
+                overlayView = null
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
+        
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+        } catch (e: Exception) {
+            Log.w("OverlayService", "Error stopping foreground: ${e.message}", e)
         }
+        
         super.onDestroy()
     }
 }
