@@ -291,9 +291,27 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Stop camera detection when app is in foreground
+        // This is the correct and standard way to stop a service by class in Android.
+        // No extras are needed unless your service expects them for shutdown logic.
+        stopService(Intent(this, CameraDetectionService::class.java))
         if (intent?.getBooleanExtra("start_overlay", false) == true) {
             startService(Intent(this, OverlayService::class.java))
             intent.removeExtra("start_overlay")
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Start camera detection when app goes to background, if permissions are granted
+        val overlay = Settings.canDrawOverlays(this)
+        val camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        val location = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else true
+        if (overlay && camera && location && notification) {
+            startService(Intent(this, CameraDetectionService::class.java))
         }
     }
 }
