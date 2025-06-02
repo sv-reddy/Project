@@ -12,6 +12,8 @@ import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -25,9 +27,31 @@ class MainActivity : AppCompatActivity() {
         private const val REQUEST_CODE_OVERLAY = 102
     }
 
+    private enum class PermissionType {
+        OVERLAY,
+        NOTIFICATION,
+        BACKGROUND_LOCATION,
+        RUNTIME
+    }
+
+    private lateinit var startActivityForResultLauncher: ActivityResultLauncher<Intent>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Initialize the activity result launcher
+        startActivityForResultLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            // Handle overlay permission result
+            if (Settings.canDrawOverlays(this)) {
+                requestRequiredPermissions()
+            } else {
+                showPermissionDialogIfNeeded()
+            }
+        }
+
         setupNavigation()
         showPermissionDialogIfNeeded()
     }
@@ -48,25 +72,27 @@ class MainActivity : AppCompatActivity() {
         if (needsCamera) needed.add("Camera")
         if (needsLocation) needed.add("Location")
         message.text = "This app needs the following permissions to function:\n\n${needed.joinToString("\n")}\n\nPlease grant them in the next steps."
-        val dialog = AlertDialog.Builder(this)
+          val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
             .setCancelable(false)
             .create()
+
         btnGrant.setOnClickListener {
             dialog.dismiss()
             if (needsOverlay) {
                 val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
-                startActivityForResult(intent, REQUEST_CODE_OVERLAY)
+                startActivityForResultLauncher.launch(intent)
             } else {
                 requestRequiredPermissions()
             }
         }
+        
         dialog.show()
     }
 
     private fun setupNavigation() {
         val navView: BottomNavigationView = findViewById(R.id.nav_view)
-        navView.setOnNavigationItemSelectedListener { item ->
+        navView.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.navigation_status -> {
                     openFragment(StatusFragment())
@@ -92,6 +118,7 @@ class MainActivity : AppCompatActivity() {
         // Add Android 14+ specific permissions
         if (Build.VERSION.SDK_INT >= 34) {
             permissions.add("android.permission.FOREGROUND_SERVICE_CAMERA")
+            permissions.add("android.permission.FOREGROUND_SERVICE_LOCATION")
         }
 
         // Add notification permission for Android 13+
@@ -163,10 +190,9 @@ class MainActivity : AppCompatActivity() {
                 AlertDialog.Builder(this)
                     .setTitle("Overlay Permission Required")
                     .setMessage("Overlay permission is required for warning displays. Please enable it in system settings.")
-                    .setCancelable(false)
-                    .setPositiveButton("Try Again") { _, _ ->
+                    .setCancelable(false)                    .setPositiveButton("Try Again") { _, _ ->
                         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))
-                        startActivityForResult(intent, REQUEST_CODE_OVERLAY)
+                        startActivityForResultLauncher.launch(intent)
                     }
                     .setNegativeButton("Exit") { _, _ -> finish() }
                     .show()
