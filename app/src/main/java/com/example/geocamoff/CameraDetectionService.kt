@@ -16,6 +16,14 @@ class CameraDetectionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("CameraDetection", "Service onStartCommand() called")
+        
+        // Check if this is a stop command
+        if (intent?.action == "STOP_SERVICE") {
+            Log.d("CameraDetection", "Received stop command, stopping self")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        
         return START_NOT_STICKY // Don't restart if killed
     }
 

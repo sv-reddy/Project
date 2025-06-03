@@ -5,22 +5,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import android.view.WindowManager
-import android.widget.TextView
 import androidx.core.app.NotificationCompat
 
 class OverlayService : Service() {
-    private var windowManager: WindowManager? = null
-    private var overlayView: View? = null
 
     companion object {
         private const val CHANNEL_ID = "overlay_service_channel"
@@ -31,65 +21,13 @@ class OverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d("OverlayService", "onCreate called")
-        // Check overlay permission before proceeding
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
-            Log.e("OverlayService", "SYSTEM_ALERT_WINDOW permission not granted. Stopping service.")
-            stopSelf()
-            return
-        }
+        Log.d("OverlayService", "onCreate called - showing notification only")
         
+        // Just create notification, no overlay window to avoid crashes
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
-        
-        // Initialize the overlay view
-        overlayView = inflater.inflate(R.layout.overlay_layout, null)
-        overlayView?.findViewById<TextView>(R.id.textViewOverlayMessage)?.text =
-            "⚠️ CAUTION!\nThis is a RESTRICTED ZONE.\nClose the camera."
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or            WindowManager.LayoutParams.FLAG_DIM_BEHIND,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.CENTER
-            dimAmount = 0.7f
-        }
-        
-        // Make overlay truly immersive (hide nav/status bars)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            overlayView?.let { view ->
-                view.windowInsetsController?.let { controller ->
-                    controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                    controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            overlayView?.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            )
-        }
-
-        try {
-            windowManager?.addView(overlayView, params)
-            Log.d("OverlayService", "Overlay view added to window manager.")
-        } catch (e: Exception) {
-            Log.e("OverlayService", "Failed to add overlay view: ${e.message}")
-            stopSelf()
-        }
+        Log.d("OverlayService", "Notification created successfully")
     }
 
     private fun createNotificationChannel() {
@@ -107,9 +45,7 @@ class OverlayService : Service() {
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
         }
-    }
-
-    private fun createNotification(): android.app.Notification {
+    }    private fun createNotification(): android.app.Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, notificationIntent,
@@ -117,30 +53,19 @@ class OverlayService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Camera Restriction Active")
-            .setContentText("You are in a restricted zone")
+            .setContentTitle("⚠️ Camera Alert")
+            .setContentText("Camera detected in restricted zone - Please close camera app")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setOngoing(true)
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-    }    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return START_STICKY
     }
-    
-    override fun onDestroy() {
+      override fun onDestroy() {
         Log.d("OverlayService", "onDestroy called")
-        
-        if (overlayView != null) {
-            try {
-                windowManager?.removeView(overlayView)
-                Log.d("OverlayService", "Overlay view removed successfully")
-            } catch (e: Exception) {
-                Log.w("OverlayService", "Error removing overlay view: ${e.message}", e)
-            } finally {
-                overlayView = null
-            }
-        }
         
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -149,6 +74,7 @@ class OverlayService : Service() {
                 @Suppress("DEPRECATION")
                 stopForeground(true)
             }
+            Log.d("OverlayService", "Foreground service stopped successfully")
         } catch (e: Exception) {
             Log.w("OverlayService", "Error stopping foreground: ${e.message}", e)
         }
