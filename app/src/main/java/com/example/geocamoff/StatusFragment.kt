@@ -18,17 +18,18 @@ import android.provider.Settings
 class StatusFragment : Fragment() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var statusText: TextView
-
+    
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {        val view = inflater.inflate(R.layout.fragment_status, container, false)
+    ): View? {
+        val view = inflater.inflate(R.layout.fragment_status, container, false)
         statusText = view.findViewById(R.id.status_text)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
         
         // Check overlay permission
         if (!Settings.canDrawOverlays(requireContext())) {
-            statusText.text = "Overlay permission required. Tap to grant."
+            statusText.text = getString(R.string.overlay_permission_required)
             statusText.setOnClickListener {
                 val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
                 intent.data = android.net.Uri.parse("package:" + requireContext().packageName)
@@ -42,9 +43,10 @@ class StatusFragment : Fragment() {
 
     private fun requestLocationUpdate() {
         if (!isAdded) return // Prevent crash if fragment is not attached
+        
         if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
             ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            statusText.text = "Location permission not granted"
+            statusText.text = getString(R.string.location_permission_not_granted)
             return
         }
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000).build()
@@ -55,33 +57,31 @@ class StatusFragment : Fragment() {
                 if (location != null) {
                     updateLocationUI(location)
                 } else {
-                    statusText.text = "Unable to get location"
+                    statusText.text = getString(R.string.unable_to_get_location)
                 }
             }
         }, Looper.getMainLooper())
-    }    private fun updateLocationUI(location: Location) {
+    }
+
+    private fun updateLocationUI(location: Location) {
         if (!isAdded || activity == null) return // Prevent crash if fragment/activity is not attached
         
-        val lat = location.latitude
-        val lng = location.longitude
-        val geofences = RestrictedAreaLoader.loadRestrictedAreas(requireContext())
-        val inside = geofences.firstOrNull { isInsideGeofence(lat, lng, it) }
+        val currentPoint = LatLngPoint(location.latitude, location.longitude)
+        val polygonGeofences = RestrictedAreaLoader.loadRestrictedAreas(requireContext())
+        val inside = polygonGeofences.firstOrNull { geofence ->
+            PolygonGeofenceUtils.isInsidePolygonGeofence(currentPoint, geofence)
+        }
         
         try {
             if (inside != null) {
-                statusText.text = "Current Area: ${inside.name}\nStatus: RESTRICTED ZONE"
+                statusText.text = getString(R.string.status_restricted_zone, inside.name)
                 StateManager.updateGeofenceState(requireContext(), true)
             } else {
-                statusText.text = "Current Area: $lat, $lng\nStatus: Not Restricted"
+                statusText.text = getString(R.string.status_not_restricted, currentPoint.latitude, currentPoint.longitude)
                 StateManager.updateGeofenceState(requireContext(), false)
             }
         } catch (e: Exception) {
-            statusText.text = "Error updating overlay: ${e.localizedMessage}"        }
-    }
-
-    private fun isInsideGeofence(lat: Double, lng: Double, geofence: GeofenceData): Boolean {
-        val result = FloatArray(1)
-        Location.distanceBetween(lat, lng, geofence.latitude, geofence.longitude, result)
-        return result[0] <= geofence.radius
+            statusText.text = getString(R.string.status_error, e.localizedMessage ?: "Unknown error")
+        }
     }
 }

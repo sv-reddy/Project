@@ -100,9 +100,7 @@ class MainActivity : AppCompatActivity() {    companion object {
         if (needsCamera) needed.add("Camera")
         if (needsLocation) needed.add("Location")
         if (needsNotification) needed.add("Notifications")
-        // Don't include background location in initial dialog - handle it separately
 
-        // Move the message to resources
         message.text = getString(R.string.permission_dialog_message, needed.joinToString("\n"))        // Show toast with missing permissions for debugging
         Toast.makeText(this, "Missing permissions: ${needed.joinToString(", ")}", Toast.LENGTH_LONG).show()
         

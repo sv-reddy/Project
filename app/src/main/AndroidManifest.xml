@@ -26,13 +26,11 @@
             </intent-filter>
         </activity>
 
-        <service android:name=".CameraDetectionService" android:exported="false" />
-        <service 
+        <service android:name=".CameraDetectionService" android:exported="false" />        <service 
             android:name=".OverlayService" 
             android:exported="false"
             android:enabled="true"
             android:foregroundServiceType="camera|location" />
-        <receiver android:name=".GeofenceBroadcastReceiver" android:exported="false" />
     </application>
 
 </manifest>

@@ -1,9 +1,52 @@
 [
   {
-    "name": "College Zone",
-    "latitude": 37.4219983,
-    "longitude": -122.084,
-    "radius": 1000,
+    "name": "School Zone",
+    "coordinates": [
+      {"latitude": 17.3571, "longitude": 78.5074},
+      {"latitude": 17.3572, "longitude": 78.5084},
+      {"latitude": 17.358332, "longitude": 78.5085},
+      {"latitude": 17.3585, "longitude": 78.5075}
+    ],
     "id": "school_zone_001"
+  },
+  {
+    "name": "Government Building",
+    "coordinates": [
+      {"latitude": 38.8977, "longitude": -77.0365},
+      {"latitude": 38.8987, "longitude": -77.0355},
+      {"latitude": 38.8987, "longitude": -77.0375},
+      {"latitude": 38.8967, "longitude": -77.0375}
+    ],
+    "id": "govt_building_001"
+  },
+  {
+    "name": "Hospital Complex",
+    "coordinates": [
+      {"latitude": 40.7128, "longitude": -74.0060},
+      {"latitude": 40.7138, "longitude": -74.0050},
+      {"latitude": 40.7138, "longitude": -74.0070},
+      {"latitude": 40.7118, "longitude": -74.0070}
+    ],
+    "id": "hospital_001"
+  },
+  {
+    "name": "Private Property",
+    "coordinates": [
+      {"latitude": 34.0522, "longitude": -118.2437},
+      {"latitude": 34.0532, "longitude": -118.2427},
+      {"latitude": 34.0532, "longitude": -118.2447},
+      {"latitude": 34.0512, "longitude": -118.2447}
+    ],
+    "id": "private_property_001"
+  },
+  {
+    "name": "Military Base",
+    "coordinates": [
+      {"latitude": 32.7767, "longitude": -96.7970},
+      {"latitude": 32.7787, "longitude": -96.7950},
+      {"latitude": 32.7787, "longitude": -96.7990},
+      {"latitude": 32.7747, "longitude": -96.7990}
+    ],
+    "id": "military_base_001"
   }
 ]
