@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -28,24 +27,20 @@ class OverlayService : Service() {
         startForeground(NOTIFICATION_ID, createNotification())
         
         Log.d("OverlayService", "Notification created successfully")
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Overlay Service Channel",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Shows notification when camera is used in restricted zone"
-                enableLights(true)
-                enableVibration(true)
-            }
-
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+    }    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Overlay Service Channel",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Shows notification when camera is used in restricted zone"
+            enableLights(true)
+            enableVibration(true)
         }
-    }    private fun createNotification(): android.app.Notification {
+
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.createNotificationChannel(channel)
+    }private fun createNotification(): android.app.Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, notificationIntent,
@@ -83,17 +78,11 @@ class OverlayService : Service() {
         }
         
         return START_STICKY
-    }
-      override fun onDestroy() {
+    }    override fun onDestroy() {
         Log.d("OverlayService", "onDestroy called")
         
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-            } else {
-                @Suppress("DEPRECATION")
-                stopForeground(true)
-            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
             Log.d("OverlayService", "Foreground service stopped successfully")
         } catch (e: Exception) {
             Log.w("OverlayService", "Error stopping foreground: ${e.message}", e)

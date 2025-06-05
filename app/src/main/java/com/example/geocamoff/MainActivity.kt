@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -19,14 +18,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
-class MainActivity : AppCompatActivity() {
-    companion object {
+class MainActivity : AppCompatActivity() {    companion object {
         private const val REQUEST_CODE_PERMISSIONS = 100
-        private const val REQUEST_CODE_OVERLAY = 102
     }
 
     private lateinit var startActivityForResultLauncher: ActivityResultLauncher<Intent>
@@ -39,14 +35,9 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize the activity result launcher
         startActivityForResultLauncher = registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) { _ ->
-            // Handle overlay permission result
-            if (Settings.canDrawOverlays(this)) {
-                requestRequiredPermissions()
-            } else {
-                showPermissionDialogIfNeeded()
-            }
+            ActivityResultContracts.StartActivityForResult()        ) { _ ->
+            // Handle permission results if needed
+            requestRequiredPermissions()
         }
         setupNavigation()
         showPermissionDialogIfNeeded()
@@ -246,29 +237,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "Background location denied - some features may be limited", Toast.LENGTH_LONG).show()
                 }
             }
-        }
-    }
-
-    @Deprecated("Deprecated in Java. Use ActivityResultLauncher instead.")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_CODE_OVERLAY) {
-            if (Settings.canDrawOverlays(this)) {
-                requestRequiredPermissions()
-            } else {
-                AlertDialog.Builder(this)
-                    .setTitle("Overlay Permission Required")
-                    .setMessage("Overlay permission is required for warning displays. Please enable it in system settings.")
-                    .setCancelable(false)
-                    .setPositiveButton("Try Again") { _, _ ->
-                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:$packageName".toUri())
-                        startActivityForResultLauncher.launch(intent)
-                    }
-                    .setNegativeButton("Exit") { _, _ -> finish() }
-                    .show()
-            }
-        }
-    }
+        }    }
 
     private fun openFragment(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
@@ -328,47 +297,41 @@ class MainActivity : AppCompatActivity() {
             }
         } else {            Log.d("MainActivity", "Not starting service - missing permissions. Camera: $camera, Location: $location, Notification: $notification")
         }
-    }
-
-    private fun startForegroundCameraDetection() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            try {
-                cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
-                foregroundCameraCallback = object : CameraManager.AvailabilityCallback() {
-                    override fun onCameraUnavailable(cameraId: String) {
-                        super.onCameraUnavailable(cameraId)
-                        Log.d("MainActivity", "Foreground: Camera $cameraId unavailable (in use)")
-                        StateManager.updateCameraState(this@MainActivity, true)
-                    }
-                    
-                    override fun onCameraAvailable(cameraId: String) {
-                        super.onCameraAvailable(cameraId)
-                        Log.d("MainActivity", "Foreground: Camera $cameraId available (not in use)")
-                        StateManager.updateCameraState(this@MainActivity, false)
-                    }
+    }    private fun startForegroundCameraDetection() {
+        try {
+            cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
+            foregroundCameraCallback = object : CameraManager.AvailabilityCallback() {
+                override fun onCameraUnavailable(cameraId: String) {
+                    super.onCameraUnavailable(cameraId)
+                    Log.d("MainActivity", "Foreground: Camera $cameraId unavailable (in use)")
+                    StateManager.updateCameraState(this@MainActivity, true)
                 }
                 
-                foregroundCameraCallback?.let { 
-                    cameraManager?.registerAvailabilityCallback(it, null)
-                    Log.d("MainActivity", "Foreground camera detection started")
+                override fun onCameraAvailable(cameraId: String) {
+                    super.onCameraAvailable(cameraId)
+                    Log.d("MainActivity", "Foreground: Camera $cameraId available (not in use)")
+                    StateManager.updateCameraState(this@MainActivity, false)
                 }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error setting up foreground camera detection: ${e.message}", e)
             }
+            
+            foregroundCameraCallback?.let { 
+                cameraManager?.registerAvailabilityCallback(it, null)
+                Log.d("MainActivity", "Foreground camera detection started")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error setting up foreground camera detection: ${e.message}", e)
         }
     }
-    
-    private fun stopForegroundCameraDetection() {
+      private fun stopForegroundCameraDetection() {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                foregroundCameraCallback?.let { callback ->
-                    cameraManager?.unregisterAvailabilityCallback(callback)
-                    Log.d("MainActivity", "Foreground camera detection stopped")
-                }
+            foregroundCameraCallback?.let { callback ->
+                cameraManager?.unregisterAvailabilityCallback(callback)
+                Log.d("MainActivity", "Foreground camera detection stopped")
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error stopping foreground camera detection: ${e.message}", e)
-        } finally {            foregroundCameraCallback = null
+        } finally {
+            foregroundCameraCallback = null
             cameraManager = null
         }
     }
