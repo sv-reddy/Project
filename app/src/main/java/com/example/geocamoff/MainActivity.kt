@@ -28,12 +28,15 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 class MainActivity : AppCompatActivity() {    companion object {
         private const val REQUEST_CODE_PERMISSIONS = 100
     }    private lateinit var startActivityForResultLauncher: ActivityResultLauncher<Intent>
-    private var cameraManager: CameraManager? = null
+        private var cameraManager: CameraManager? = null
     private var foregroundCameraCallback: CameraManager.AvailabilityCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Reset service state to prevent conflicts on app restart
+        StateManager.resetServiceState()
 
         // Initialize the activity result launcher
         startActivityForResultLauncher = registerForActivityResult(
@@ -280,11 +283,11 @@ class MainActivity : AppCompatActivity() {    companion object {
         }
         
         // Start foreground camera detection
-        startForegroundCameraDetection()
-        
+        startForegroundCameraDetection()        
         if (intent?.getBooleanExtra("start_overlay", false) == true) {
             try {
-                startService(Intent(this, OverlayService::class.java))
+                val overlayIntent = Intent(this, OverlayService::class.java)
+                startService(overlayIntent)
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error starting OverlayService: ${e.message}", e)
             }

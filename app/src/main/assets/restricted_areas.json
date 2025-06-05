@@ -20,12 +20,12 @@
     "id": "testing_001"
   },
   {
-    "name": "Hospital Complex",
+    "name": "Shashank Complex",
     "coordinates": [
-      {"latitude": 40.7128, "longitude": -74.0060},
-      {"latitude": 40.7138, "longitude": -74.0050},
-      {"latitude": 40.7138, "longitude": -74.0070},
-      {"latitude": 40.7118, "longitude": -74.0070}
+      {"latitude": 17.3540, "longitude": 78.5315},
+      {"latitude": 17.3540, "longitude": 78.5350},
+      {"latitude": 17.3502, "longitude": 78.5350},
+      {"latitude": 17.3502, "longitude": 78.5315}
     ],
     "id": "hospital_001"
   },
