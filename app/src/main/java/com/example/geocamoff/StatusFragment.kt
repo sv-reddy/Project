@@ -1,7 +1,6 @@
 package com.example.geocamoff
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
@@ -14,22 +13,19 @@ import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
 import com.google.android.gms.location.*
-import android.content.SharedPreferences
 import android.provider.Settings
 
 class StatusFragment : Fragment() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var statusText: TextView
-    private lateinit var prefs: SharedPreferences
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_status, container, false)
+    ): View? {        val view = inflater.inflate(R.layout.fragment_status, container, false)
         statusText = view.findViewById(R.id.status_text)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
-        prefs = requireContext().getSharedPreferences("geofences", Context.MODE_PRIVATE)
+        
         // Check overlay permission
         if (!Settings.canDrawOverlays(requireContext())) {
             statusText.text = "Overlay permission required. Tap to grant."
@@ -63,15 +59,16 @@ class StatusFragment : Fragment() {
                 }
             }
         }, Looper.getMainLooper())
-    }
-
-    private fun updateLocationUI(location: Location) {
+    }    private fun updateLocationUI(location: Location) {
         if (!isAdded || activity == null) return // Prevent crash if fragment/activity is not attached
+        
         val lat = location.latitude
         val lng = location.longitude
-        val geofences = loadGeofencesFromPrefs()
+        val geofences = RestrictedAreaLoader.loadRestrictedAreas(requireContext())
         val inside = geofences.firstOrNull { isInsideGeofence(lat, lng, it) }
-        try {            if (inside != null) {
+        
+        try {
+            if (inside != null) {
                 statusText.text = "Current Area: ${inside.name}\nStatus: RESTRICTED ZONE"
                 StateManager.updateGeofenceState(requireContext(), true)
             } else {
@@ -79,29 +76,7 @@ class StatusFragment : Fragment() {
                 StateManager.updateGeofenceState(requireContext(), false)
             }
         } catch (e: Exception) {
-            statusText.text = "Error updating overlay: ${e.localizedMessage}"
-        }
-    }
-
-    private fun loadGeofencesFromPrefs(): List<GeofenceData> {
-        val list = mutableListOf<GeofenceData>()
-        val json = prefs.getString("geofence_list", null) ?: return list
-        val arr = try { org.json.JSONArray(json) } catch (e: Exception) { null } ?: return list
-        for (i in 0 until arr.length()) {
-            val obj = arr.getJSONObject(i)
-            try {
-                list.add(
-                    GeofenceData(
-                        obj.getString("name"),
-                        obj.getDouble("latitude"),
-                        obj.getDouble("longitude"),
-                        obj.getDouble("radius").toFloat(),
-                        obj.optString("id", System.currentTimeMillis().toString())
-                    )
-                )
-            } catch (_: Exception) {}
-        }
-        return list
+            statusText.text = "Error updating overlay: ${e.localizedMessage}"        }
     }
 
     private fun isInsideGeofence(lat: Double, lng: Double, geofence: GeofenceData): Boolean {
