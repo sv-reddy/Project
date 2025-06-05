@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -29,6 +30,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var startActivityForResultLauncher: ActivityResultLauncher<Intent>
+    private var cameraManager: CameraManager? = null
+    private var foregroundCameraCallback: CameraManager.AvailabilityCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -273,9 +276,12 @@ class MainActivity : AppCompatActivity() {
             .commit()
     }    override fun onResume() {
         super.onResume()
-        Log.d("MainActivity", "onResume() - stopping camera detection service")
+        Log.d("MainActivity", "onResume() - stopping camera detection service and starting foreground detection")
         
-        // Stop camera detection when app is in foreground
+        // Notify StateManager that app is in foreground
+        StateManager.setAppForegroundState(true)
+        
+        // Stop camera detection service when app is in foreground
         try {
             val stopIntent = Intent(this, CameraDetectionService::class.java).apply {
                 action = "STOP_SERVICE"
@@ -285,6 +291,9 @@ class MainActivity : AppCompatActivity() {
             Log.w("MainActivity", "Error stopping CameraDetectionService: ${e.message}", e)
         }
         
+        // Start foreground camera detection
+        startForegroundCameraDetection()
+        
         if (intent?.getBooleanExtra("start_overlay", false) == true) {
             try {
                 startService(Intent(this, OverlayService::class.java))
@@ -293,9 +302,15 @@ class MainActivity : AppCompatActivity() {
             }
             intent.removeExtra("start_overlay")
         }
-    }override fun onPause() {
+    }    override fun onPause() {
         super.onPause()
-        Log.d("MainActivity", "onPause() - checking permissions and starting camera detection")
+        Log.d("MainActivity", "onPause() - stopping foreground detection and starting camera detection service")
+        
+        // Stop foreground camera detection
+        stopForegroundCameraDetection()
+        
+        // Notify StateManager that app is going to background
+        StateManager.setAppForegroundState(false)
         
         // Start camera detection when app goes to background, if permissions are granted
         val camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -311,8 +326,55 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error starting CameraDetectionService: ${e.message}", e)
             }
-        } else {
-            Log.d("MainActivity", "Not starting service - missing permissions. Camera: $camera, Location: $location, Notification: $notification")
+        } else {            Log.d("MainActivity", "Not starting service - missing permissions. Camera: $camera, Location: $location, Notification: $notification")
         }
+    }
+
+    private fun startForegroundCameraDetection() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
+                foregroundCameraCallback = object : CameraManager.AvailabilityCallback() {
+                    override fun onCameraUnavailable(cameraId: String) {
+                        super.onCameraUnavailable(cameraId)
+                        Log.d("MainActivity", "Foreground: Camera $cameraId unavailable (in use)")
+                        StateManager.updateCameraState(this@MainActivity, true)
+                    }
+                    
+                    override fun onCameraAvailable(cameraId: String) {
+                        super.onCameraAvailable(cameraId)
+                        Log.d("MainActivity", "Foreground: Camera $cameraId available (not in use)")
+                        StateManager.updateCameraState(this@MainActivity, false)
+                    }
+                }
+                
+                foregroundCameraCallback?.let { 
+                    cameraManager?.registerAvailabilityCallback(it, null)
+                    Log.d("MainActivity", "Foreground camera detection started")
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error setting up foreground camera detection: ${e.message}", e)
+            }
+        }
+    }
+    
+    private fun stopForegroundCameraDetection() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                foregroundCameraCallback?.let { callback ->
+                    cameraManager?.unregisterAvailabilityCallback(callback)
+                    Log.d("MainActivity", "Foreground camera detection stopped")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error stopping foreground camera detection: ${e.message}", e)
+        } finally {            foregroundCameraCallback = null
+            cameraManager = null
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopForegroundCameraDetection()
     }
 }

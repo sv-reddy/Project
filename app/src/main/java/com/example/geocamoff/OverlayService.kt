@@ -56,12 +56,32 @@ class OverlayService : Service() {
             .setContentTitle("⚠️ Camera Alert")
             .setContentText("Camera detected in restricted zone - Please close camera app")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setOngoing(true)
-            .setContentIntent(pendingIntent)            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(false) // Allow dismissing the notification
+            .setAutoCancel(true) // Auto dismiss when tapped
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    }override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val isForegroundMode = intent?.getBooleanExtra("foreground_mode", false) ?: false
+        
+        if (isForegroundMode) {
+            Log.d("OverlayService", "Running in foreground mode - showing temporary notification")
+            // Show a temporary notification and stop the service after a delay
+            createNotificationChannel()
+            startForeground(NOTIFICATION_ID, createNotification())
+            
+            // Stop the service after 5 seconds when app is in foreground
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    stopSelf()
+                } catch (e: Exception) {
+                    Log.w("OverlayService", "Error stopping foreground service: ${e.message}", e)
+                }
+            }, 5000)
+            
+            return START_NOT_STICKY
+        }
+        
         return START_STICKY
     }
       override fun onDestroy() {

@@ -7,6 +7,11 @@ import android.os.Build
 object StateManager {
     private var isInRestrictedZone = false
     private var isCameraActive = false
+    private var isAppInForeground = false
+
+    fun setAppForegroundState(inForeground: Boolean) {
+        isAppInForeground = inForeground
+    }
 
     fun updateGeofenceState(context: Context, inRestrictedZone: Boolean) {
         isInRestrictedZone = inRestrictedZone
@@ -20,6 +25,16 @@ object StateManager {
 
     private fun updateOverlayState(context: Context) {
         val shouldShowOverlay = isInRestrictedZone && isCameraActive
+        
+        // Don't show overlay if app is already in foreground
+        if (isAppInForeground && shouldShowOverlay) {
+            // Just show a notification instead of overlay when app is in foreground
+            val notificationIntent = Intent(context, OverlayService::class.java)
+            notificationIntent.putExtra("foreground_mode", true)
+            context.startService(notificationIntent)
+            return
+        }
+        
         val overlayIntent = Intent(context, OverlayService::class.java)
         if (shouldShowOverlay) {
             if (Build.VERSION.SDK_INT >= 34) {
