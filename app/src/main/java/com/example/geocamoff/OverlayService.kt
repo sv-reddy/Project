@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -28,18 +29,20 @@ class OverlayService : Service() {
         
         Log.d("OverlayService", "Notification created successfully")
     }    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Overlay Service Channel",
-            NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            description = "Shows notification when camera is used in restricted zone"
-            enableLights(true)
-            enableVibration(true)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Overlay Service Channel",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Shows notification when camera is used in restricted zone"
+                enableLights(true)
+                enableVibration(true)
+            }
 
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.createNotificationChannel(channel)
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(channel)
+        }
     }private fun createNotification(): android.app.Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(

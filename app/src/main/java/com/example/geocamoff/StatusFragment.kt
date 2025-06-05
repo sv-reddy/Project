@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.app.ActivityCompat
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import com.google.android.gms.location.*
 import android.provider.Settings
@@ -27,12 +28,11 @@ class StatusFragment : Fragment() {
         statusText = view.findViewById(R.id.status_text)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
         
-        // Check overlay permission
         if (!Settings.canDrawOverlays(requireContext())) {
             statusText.text = getString(R.string.overlay_permission_required)
             statusText.setOnClickListener {
                 val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                intent.data = android.net.Uri.parse("package:" + requireContext().packageName)
+                intent.data = "package:${requireContext().packageName}".toUri()
                 startActivity(intent)
             }
             return view

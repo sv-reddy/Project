@@ -8,7 +8,7 @@ object PolygonGeofenceUtils {
      * Determines if a point is inside a polygon using the ray casting algorithm
      * This is more accurate than circular geofences for irregular shaped areas
      */
-    fun isPointInPolygon(point: LatLngPoint, polygon: List<LatLngPoint>): Boolean {
+    private fun isPointInPolygon(point: LatLngPoint, polygon: List<LatLngPoint>): Boolean {
         if (polygon.size < 3) return false
         
         val x = point.longitude
@@ -35,7 +35,7 @@ object PolygonGeofenceUtils {
      * Quick bounding box check before expensive polygon calculation
      * This optimizes performance by eliminating obviously outside points
      */
-    fun isPointInBoundingBox(point: LatLngPoint, boundingBox: BoundingBox): Boolean {
+    private fun isPointInBoundingBox(point: LatLngPoint, boundingBox: BoundingBox): Boolean {
         return point.latitude >= boundingBox.minLatitude &&
                point.latitude <= boundingBox.maxLatitude &&
                point.longitude >= boundingBox.minLongitude &&

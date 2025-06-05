@@ -2,11 +2,14 @@ package com.example.geocamoff
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -18,14 +21,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class MainActivity : AppCompatActivity() {    companion object {
         private const val REQUEST_CODE_PERMISSIONS = 100
-    }
-
-    private lateinit var startActivityForResultLauncher: ActivityResultLauncher<Intent>
+    }    private lateinit var startActivityForResultLauncher: ActivityResultLauncher<Intent>
     private var cameraManager: CameraManager? = null
     private var foregroundCameraCallback: CameraManager.AvailabilityCallback? = null
 
@@ -35,17 +37,27 @@ class MainActivity : AppCompatActivity() {    companion object {
 
         // Initialize the activity result launcher
         startActivityForResultLauncher = registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult()        ) { _ ->
+            ActivityResultContracts.StartActivityForResult()
+        ) { _ ->
             // Handle permission results if needed
             requestRequiredPermissions()
         }
+        
         setupNavigation()
         showPermissionDialogIfNeeded()
+        
+        // Request battery optimization exemption after a delay
+        findViewById<View>(android.R.id.content).postDelayed({
+            requestBatteryOptimizationExemption()
+        }, 3000)
+        
         // Add a delay and recheck permissions (for debugging)
         findViewById<View>(android.R.id.content).postDelayed({
             checkAllPermissions()
         }, 2000)
-    }    private fun checkAllPermissions() {
+    }
+
+    private fun checkAllPermissions() {
         val camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         val location = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -169,10 +181,19 @@ class MainActivity : AppCompatActivity() {    companion object {
             // Request background location separately if needed
             requestBackgroundLocationLater()
         }
-    }
-
-    private fun startCameraDetectionService() {
-        startService(Intent(this, CameraDetectionService::class.java))
+    }    private fun startCameraDetectionService() {
+        try {
+            val serviceIntent = Intent(this, CameraDetectionService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+                Log.d("MainActivity", "CameraDetectionService started as foreground service (API 26+)")
+            } else {
+                startService(serviceIntent)
+                Log.d("MainActivity", "CameraDetectionService started as regular service (API < 26)")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error starting CameraDetectionService: ${e.message}", e)
+        }
     }
 
     private fun requestBackgroundLocationLater() {
@@ -279,7 +300,9 @@ class MainActivity : AppCompatActivity() {    companion object {
         // Notify StateManager that app is going to background
         StateManager.setAppForegroundState(false)
         
-        // Start camera detection when app goes to background, if permissions are granted
+        // Start persistent background service
+        startPersistentCameraService()
+    }    private fun startPersistentCameraService() {
         val camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         val location = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -288,14 +311,24 @@ class MainActivity : AppCompatActivity() {    companion object {
         
         if (camera && location && notification) {
             try {
-                Log.d("MainActivity", "Starting CameraDetectionService")
-                startService(Intent(this, CameraDetectionService::class.java))
+                Log.d("MainActivity", "Starting persistent CameraDetectionService")
+                val serviceIntent = Intent(this, CameraDetectionService::class.java).apply {
+                    action = "START_MONITORING"
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent) // Use startForegroundService for better persistence on API 26+
+                    Log.d("MainActivity", "Started as foreground service (API 26+)")
+                } else {
+                    startService(serviceIntent) // Use regular startService for older versions
+                    Log.d("MainActivity", "Started as regular service (API < 26)")
+                }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error starting CameraDetectionService: ${e.message}", e)
             }
-        } else {            Log.d("MainActivity", "Not starting service - missing permissions. Camera: $camera, Location: $location, Notification: $notification")
+        } else {
+            Log.d("MainActivity", "Not starting service - missing permissions. Camera: $camera, Location: $location, Notification: $notification")
         }
-    }    private fun startForegroundCameraDetection() {
+    }private fun startForegroundCameraDetection() {
         try {
             cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
             foregroundCameraCallback = object : CameraManager.AvailabilityCallback() {
@@ -331,6 +364,21 @@ class MainActivity : AppCompatActivity() {    companion object {
         } finally {
             foregroundCameraCallback = null
             cameraManager = null
+        }
+    }    private fun requestBatteryOptimizationExemption() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = "package:$packageName".toUri()
+                }
+                startActivity(intent)
+                Log.d("MainActivity", "Battery optimization exemption requested")
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Could not open battery optimization settings: ${e.message}")
+            }
+        } else {
+            Log.d("MainActivity", "App already exempted from battery optimization")
         }
     }
 

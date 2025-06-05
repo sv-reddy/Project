@@ -39,20 +39,10 @@ class PolygonGeofenceAdapter : RecyclerView.Adapter<PolygonGeofenceAdapter.Polyg
             R.string.polygon_points_format, 
             geofence.coordinates.size
         )
-    }
-
-    override fun getItemCount() = geofences.size
+    }    override fun getItemCount() = geofences.size
 
     fun addGeofence(geofence: PolygonGeofenceData) {
         geofences.add(geofence)
         notifyItemInserted(geofences.size - 1)
     }
-
-    fun clearGeofences() {
-        val size = geofences.size
-        geofences.clear()
-        notifyItemRangeRemoved(0, size)
-    }
-
-    fun getGeofences(): List<PolygonGeofenceData> = geofences.toList()
 }
