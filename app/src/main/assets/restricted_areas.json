@@ -30,12 +30,12 @@
     "id": "hospital_001"
   },
   {
-    "name": "Private Property",
+    "name": "Gautam Property",
     "coordinates": [
-      {"latitude": 34.0522, "longitude": -118.2437},
-      {"latitude": 34.0532, "longitude": -118.2427},
-      {"latitude": 34.0532, "longitude": -118.2447},
-      {"latitude": 34.0512, "longitude": -118.2447}
+      {"latitude": 17.4070, "longitude": 78.4830},
+      {"latitude": 17.4070, "longitude": 78.4865},
+      {"latitude": 17.4035, "longitude": 78.4865},
+      {"latitude": 17.4035, "longitude": 78.4830}
     ],
     "id": "private_property_001"
   },

@@ -16,20 +16,13 @@ class OverlayService : Service() {
         private const val CHANNEL_ID = "overlay_service_channel"
         private const val NOTIFICATION_ID = 1
         private var isServiceRunning = false
-        private var notificationManager: NotificationManager? = null
-    }
+        private var notificationManager: NotificationManager? = null    }
 
-        override fun onBind(intent: Intent?): IBinder? = null
+    override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-        Log.d("OverlayService", "onCreate called - isServiceRunning: $isServiceRunning")
-        
-        // If service is already running, don't recreate
-        if (isServiceRunning) {
-            Log.d("OverlayService", "Service already running, skipping onCreate")
-            return
-        }
+        Log.d("OverlayService", "onCreate called - initializing service")
         
         try {
             isServiceRunning = true
@@ -41,21 +34,16 @@ class OverlayService : Service() {
             // Create notification channel (safe to call multiple times)
             createNotificationChannel()
             
-            // Only start as foreground service on API 26+ and if we have notification permission
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForeground(NOTIFICATION_ID, createNotification())
-                Log.d("OverlayService", "Started as foreground service")
-            } else {
-                // For older versions, just show notification without foreground service
-                notificationManager?.notify(NOTIFICATION_ID, createNotification())
-                Log.d("OverlayService", "Notification created for API < 26")
-            }
-            
-            Log.d("OverlayService", "Notification created successfully")
-        } catch (e: Exception) {            Log.e("OverlayService", "Error in onCreate: ${e.message}", e)
+            Log.d("OverlayService", "Service initialized successfully")
+        } catch (e: Exception) {
+            Log.e("OverlayService", "Error in onCreate: ${e.message}", e)
             // Clean up state and stop the service
             isServiceRunning = false
-            stopSelf()
+            try {
+                stopSelf()
+            } catch (stopE: Exception) {
+                Log.w("OverlayService", "Error stopping service in onCreate catch: ${stopE.message}", stopE)
+            }
         }
     }
 
@@ -123,10 +111,15 @@ class OverlayService : Service() {
                 // Show a temporary notification and stop the service after a delay
                 createNotificationChannel()
                 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForeground(NOTIFICATION_ID, createNotification())
-                } else {
-                    notificationManager?.notify(NOTIFICATION_ID, createNotification())
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForeground(NOTIFICATION_ID, createNotification())
+                    } else {
+                        notificationManager?.notify(NOTIFICATION_ID, createNotification())
+                    }
+                } catch (e: Exception) {
+                    Log.w("OverlayService", "Failed to start foreground in foreground mode: ${e.message}", e)
+                    // Continue anyway, just log the error
                 }
                 
                 // Stop the service after 5 seconds when app is in foreground
@@ -142,45 +135,89 @@ class OverlayService : Service() {
                 return START_NOT_STICKY
             }
             
-            // Normal service mode
-            if (!isServiceRunning) {
-                onCreate() // Ensure service is properly initialized
+            // Normal service mode - start as foreground service to prevent crashes
+            Log.d("OverlayService", "Service started in normal mode")
+            
+            // Safely start as foreground service with proper error handling
+            try {
+                // Small delay to ensure service is properly initialized
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        if (isServiceRunning) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startForeground(NOTIFICATION_ID, createNotification())
+                                Log.d("OverlayService", "Started as foreground service (delayed)")
+                            } else {
+                                // For older versions, just show notification without foreground service
+                                notificationManager?.notify(NOTIFICATION_ID, createNotification())
+                                Log.d("OverlayService", "Notification created for API < 26 (delayed)")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("OverlayService", "Failed to start foreground service (delayed): ${e.message}", e)
+                    }
+                }, 100) // Very small delay to ensure service is ready
+            } catch (e: Exception) {
+                Log.w("OverlayService", "Failed to schedule foreground service start: ${e.message}", e)
+                // Don't crash the service if foreground start fails
             }
             
             return START_STICKY
         } catch (e: Exception) {
             Log.e("OverlayService", "Error in onStartCommand: ${e.message}", e)
             isServiceRunning = false
-            stopSelf()
+            try {
+                stopSelf()
+            } catch (stopE: Exception) {
+                Log.w("OverlayService", "Error stopping service in onStartCommand catch: ${stopE.message}", stopE)
+            }
             return START_NOT_STICKY
         }
-    }    override fun onDestroy() {
+    }override fun onDestroy() {
         Log.d("OverlayService", "onDestroy called - cleaning up resources")
         
         try {
             isServiceRunning = false
             
+            // First try to stop foreground service properly
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                Log.d("OverlayService", "Foreground service stopped successfully")
+                try {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    Log.d("OverlayService", "Foreground service stopped successfully")
+                } catch (e: Exception) {
+                    Log.w("OverlayService", "Failed to stop foreground service cleanly: ${e.message}", e)
+                    // Try alternative method
+                    try {
+                        stopForeground(true)
+                        Log.d("OverlayService", "Foreground service stopped with fallback method")
+                    } catch (e2: Exception) {
+                        Log.w("OverlayService", "Fallback stop foreground also failed: ${e2.message}", e2)
+                    }
+                }
             } else {
                 // For older versions, cancel the notification manually
-                notificationManager?.cancel(NOTIFICATION_ID)
-                Log.d("OverlayService", "Notification cancelled for API < 26")
+                try {
+                    notificationManager?.cancel(NOTIFICATION_ID)
+                    Log.d("OverlayService", "Notification cancelled for API < 26")
+                } catch (e: Exception) {
+                    Log.w("OverlayService", "Failed to cancel notification: ${e.message}", e)
+                }
             }
             
-            // Clean up notification manager reference
-            notificationManager = null
-            
         } catch (e: Exception) {
-            Log.w("OverlayService", "Error stopping foreground: ${e.message}", e)
+            Log.w("OverlayService", "Error during cleanup: ${e.message}", e)
         } finally {
             // Ensure the service state is reset even if cleanup fails
             isServiceRunning = false
             notificationManager = null
+            Log.d("OverlayService", "Service state reset")
         }
         
-        super.onDestroy()
-        Log.d("OverlayService", "Service destroyed and cleaned up")
+        try {
+            super.onDestroy()
+            Log.d("OverlayService", "Service destroyed successfully")
+        } catch (e: Exception) {
+            Log.w("OverlayService", "Error calling super.onDestroy(): ${e.message}", e)
+        }
     }
 }

@@ -45,8 +45,7 @@ object StateManager {
             }
             return
         }
-        
-        // Handle overlay service lifecycle
+          // Handle overlay service lifecycle
         if (shouldShowOverlay && !isOverlayServiceRunning) {
             // Start service only if it's not already running
             try {
@@ -59,12 +58,30 @@ object StateManager {
                     activityIntent.putExtra("start_overlay", true)
                     context.startActivity(activityIntent)
                 } else {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        context.startForegroundService(overlayIntent)
+                    // Add a small delay when app is in background to prevent crash on immediate app closure
+                    if (!isAppInForeground) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            try {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    context.startForegroundService(overlayIntent)
+                                } else {
+                                    context.startService(overlayIntent)
+                                }
+                                isOverlayServiceRunning = true
+                                android.util.Log.d("StateManager", "Started overlay service (delayed)")
+                            } catch (e: Exception) {
+                                android.util.Log.e("StateManager", "Error starting delayed overlay service: ${e.message}", e)
+                            }
+                        }, 500) // 500ms delay
                     } else {
-                        context.startService(overlayIntent)
+                        // When app is in foreground, start immediately
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(overlayIntent)
+                        } else {
+                            context.startService(overlayIntent)
+                        }
+                        isOverlayServiceRunning = true
                     }
-                    isOverlayServiceRunning = true
                 }
                 android.util.Log.d("StateManager", "Started overlay service")
             } catch (e: Exception) {
