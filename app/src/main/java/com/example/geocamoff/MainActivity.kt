@@ -19,6 +19,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import com.example.geocamoff.NotificationService
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -436,16 +437,15 @@ class MainActivity : AppCompatActivity() {    companion object {
         
         // Start foreground camera detection
         startForegroundCameraDetection()
-        
-        // Handle overlay service start intent
-        if (intent?.getBooleanExtra("start_overlay", false) == true) {
+          // Handle notification service start intent
+        if (intent?.getBooleanExtra("start_notification", false) == true) {
             try {
-                val overlayIntent = Intent(this, OverlayService::class.java)
-                startService(overlayIntent)
+                val notificationIntent = Intent(this, NotificationService::class.java)
+                startService(notificationIntent)
             } catch (e: Exception) {
-                Log.e("MainActivity", "Error starting OverlayService: ${e.message}", e)
+                Log.e("MainActivity", "Error starting NotificationService: ${e.message}", e)
             }
-            intent.removeExtra("start_overlay")
+            intent.removeExtra("start_notification")
         }
         
         // Check accessibility service status when resuming

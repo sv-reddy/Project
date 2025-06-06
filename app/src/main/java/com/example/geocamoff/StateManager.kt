@@ -8,7 +8,7 @@ object StateManager {
     private var isInRestrictedZone = false
     private var isCameraActive = false
     private var isAppInForeground = false
-    private var isOverlayServiceRunning = false
+    private var isNotificationServiceRunning = false
 
     fun setAppForegroundState(inForeground: Boolean) {
         isAppInForeground = inForeground
@@ -16,22 +16,21 @@ object StateManager {
 
     fun updateGeofenceState(context: Context, inRestrictedZone: Boolean) {
         isInRestrictedZone = inRestrictedZone
-        updateOverlayState(context)
+        updateNotificationState(context)
     }
 
     fun updateCameraState(context: Context, cameraActive: Boolean) {
         isCameraActive = cameraActive
-        updateOverlayState(context)
-    }    private fun updateOverlayState(context: Context) {
-        val shouldShowOverlay = isInRestrictedZone && isCameraActive
+        updateNotificationState(context)
+    }    private fun updateNotificationState(context: Context) {
+        val shouldShowNotification = isInRestrictedZone && isCameraActive
         
-        android.util.Log.d("StateManager", "updateOverlayState: shouldShow=$shouldShowOverlay, isRunning=$isOverlayServiceRunning, inForeground=$isAppInForeground")
-        
-        // Don't show overlay if app is already in foreground
-        if (isAppInForeground && shouldShowOverlay) {
-            // Just show a notification instead of overlay when app is in foreground
+        android.util.Log.d("StateManager", "updateNotificationState: shouldShow=$shouldShowNotification, isRunning=$isNotificationServiceRunning, inForeground=$isAppInForeground")
+          // Don't show notification if app is already in foreground
+        if (isAppInForeground && shouldShowNotification) {
+            // Just show a notification when app is in foreground
             try {
-                val notificationIntent = Intent(context, OverlayService::class.java)
+                val notificationIntent = Intent(context, NotificationService::class.java)
                 notificationIntent.putExtra("foreground_mode", true)
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -44,18 +43,17 @@ object StateManager {
                 android.util.Log.e("StateManager", "Error starting foreground notification: ${e.message}", e)
             }
             return
-        }
-          // Handle overlay service lifecycle
-        if (shouldShowOverlay && !isOverlayServiceRunning) {
+        }        // Handle notification service lifecycle
+        if (shouldShowNotification && !isNotificationServiceRunning) {
             // Start service only if it's not already running
             try {
-                val overlayIntent = Intent(context, OverlayService::class.java)
+                val notificationIntent = Intent(context, NotificationService::class.java)
                 
                 if (Build.VERSION.SDK_INT >= 34) {
-                    // On Android 14+, bring app to foreground before starting overlay
+                    // On Android 14+, bring app to foreground before starting notification
                     val activityIntent = Intent(context, MainActivity::class.java)
                     activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    activityIntent.putExtra("start_overlay", true)
+                    activityIntent.putExtra("start_notification", true)
                     context.startActivity(activityIntent)
                 } else {
                     // Add a small delay when app is in background to prevent crash on immediate app closure
@@ -63,46 +61,46 @@ object StateManager {
                         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                             try {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    context.startForegroundService(overlayIntent)
+                                    context.startForegroundService(notificationIntent)
                                 } else {
-                                    context.startService(overlayIntent)
+                                    context.startService(notificationIntent)
                                 }
-                                isOverlayServiceRunning = true
-                                android.util.Log.d("StateManager", "Started overlay service (delayed)")
+                                isNotificationServiceRunning = true
+                                android.util.Log.d("StateManager", "Started notification service (delayed)")
                             } catch (e: Exception) {
-                                android.util.Log.e("StateManager", "Error starting delayed overlay service: ${e.message}", e)
+                                android.util.Log.e("StateManager", "Error starting delayed notification service: ${e.message}", e)
                             }
                         }, 500) // 500ms delay
                     } else {
                         // When app is in foreground, start immediately
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            context.startForegroundService(overlayIntent)
+                            context.startForegroundService(notificationIntent)
                         } else {
-                            context.startService(overlayIntent)
+                            context.startService(notificationIntent)
                         }
-                        isOverlayServiceRunning = true
+                        isNotificationServiceRunning = true
                     }
                 }
-                android.util.Log.d("StateManager", "Started overlay service")
+                android.util.Log.d("StateManager", "Started notification service")
             } catch (e: Exception) {
-                android.util.Log.e("StateManager", "Error starting overlay service: ${e.message}", e)
+                android.util.Log.e("StateManager", "Error starting notification service: ${e.message}", e)
             }
-        } else if (!shouldShowOverlay && isOverlayServiceRunning) {
+        } else if (!shouldShowNotification && isNotificationServiceRunning) {
             // Stop service only if it's currently running
             try {
-                val overlayIntent = Intent(context, OverlayService::class.java)
-                context.stopService(overlayIntent)
-                isOverlayServiceRunning = false
-                android.util.Log.d("StateManager", "Stopped overlay service")
+                val notificationIntent = Intent(context, NotificationService::class.java)
+                context.stopService(notificationIntent)
+                isNotificationServiceRunning = false
+                android.util.Log.d("StateManager", "Stopped notification service")
             } catch (e: Exception) {
-                android.util.Log.w("StateManager", "Error stopping overlay service: ${e.message}", e)
+                android.util.Log.w("StateManager", "Error stopping notification service: ${e.message}", e)
             }
         }
     }
     
     // Method to reset service state (call this when app starts)
     fun resetServiceState() {
-        isOverlayServiceRunning = false
+        isNotificationServiceRunning = false
         android.util.Log.d("StateManager", "Service state reset")
     }
 }

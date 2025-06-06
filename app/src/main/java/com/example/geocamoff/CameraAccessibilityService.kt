@@ -183,17 +183,17 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
     
     private fun showCameraAlert(appName: String) {
         try {
-            val overlayIntent = Intent(this, OverlayService::class.java).apply {
+            val notificationIntent = Intent(this, NotificationService::class.java).apply {
                 putExtra("app_name", appName)
-                putExtra("detected_by", "accessibility_service")
-            }
+                putExtra("detected_by", "accessibility_service")            }
             
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(overlayIntent)
+                startForegroundService(notificationIntent)
             } else {
-                startService(overlayIntent)
+                startService(notificationIntent)
             }
-            Log.d("CameraAccessibilityService", "Camera alert notification started for app: $appName")        } catch (e: Exception) {
+            Log.d("CameraAccessibilityService", "Camera alert notification started for app: $appName")
+        } catch (e: Exception) {
             Log.e("CameraAccessibilityService", "Error showing camera alert: ${e.message}", e)
         }
     }
