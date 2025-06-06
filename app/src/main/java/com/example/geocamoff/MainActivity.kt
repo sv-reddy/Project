@@ -370,10 +370,7 @@ class MainActivity : AppCompatActivity() {    companion object {
         } else {
             Log.d("MainActivity", "Accessibility service is enabled and running")
         }
-    }
-
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val accessibilityManager = getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+    }    private fun isAccessibilityServiceEnabled(): Boolean {
         val enabledServices = Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES

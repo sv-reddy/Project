@@ -41,8 +41,7 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
         
         Log.d("CameraAccessibilityService", "Accessibility service configured for camera monitoring")
     }
-    
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+      override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event?.let {
             when (it.eventType) {
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
@@ -56,6 +55,10 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
                         Log.w("CameraAccessibilityService", "Camera app detected: $packageName")
                         handleCameraDetection(packageName ?: "Unknown")
                     }
+                }
+                else -> {
+                    // We only care about window state changes for camera detection
+                    // All other accessibility events are ignored
                 }
             }
         }
