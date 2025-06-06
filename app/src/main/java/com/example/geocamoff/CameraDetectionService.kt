@@ -4,16 +4,22 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class CameraDetectionService : Service() {
     private var cameraManager: CameraManager? = null
     private var callback: CameraManager.AvailabilityCallback? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+    private val screenStateReceiver = ScreenStateReceiver()
+    private var isReceiverRegistered = false
 
     companion object {
         private const val CHANNEL_ID = "camera_detection_channel"
@@ -23,25 +29,46 @@ class CameraDetectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == "STOP_SERVICE") {
-            Log.d("CameraDetection", "Received stop command, stopping self")
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            "STOP_SERVICE" -> {
+                Log.d("CameraDetection", "Received stop command, stopping self")
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            "SCREEN_OFF_OPTIMIZATION" -> {
+                Log.d("CameraDetection", "Optimizing for screen-off mode")
+                optimizeForScreenOff()
+                return START_STICKY
+            }
+            "USER_PRESENT_OPTIMIZATION" -> {
+                Log.d("CameraDetection", "Optimizing for user presence")
+                optimizeForUserPresent()
+                return START_STICKY
+            }
         }
         
-        Log.d("CameraDetection", "Service starting/restarting")
+        val isBootStart = intent?.action == "BOOT_START"
+        
+        Log.d("CameraDetection", "Service starting/restarting${if (isBootStart) " (after boot)" else ""}")
+        
+        // Register screen state receiver for power management
+        registerScreenStateReceiver()
+        
+        // Acquire wake lock for background operation if screen is off
+        acquireWakeLockIfNeeded()
         
         // Create persistent notification and start as foreground service if API level supports it
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             createNotificationChannel()
             val notification = createPersistentNotification()
             startForeground(NOTIFICATION_ID, notification)
-            Log.d("CameraDetection", "Started as foreground service (API 26+)")
+            Log.d("CameraDetection", "Started as foreground service (API 26+)${if (isBootStart) " after boot" else ""}")
         } else {
             // For older API levels, just start monitoring without foreground notification
-            Log.d("CameraDetection", "Started as regular service (API < 26)")
+            Log.d("CameraDetection", "Started as regular service (API < 26)${if (isBootStart) " after boot" else ""}")
         }
-          // Start camera monitoring
+          
+        // Start camera monitoring
         startCameraDetection()
         
         // Return START_STICKY to ensure service restarts if killed
@@ -62,7 +89,8 @@ class CameraDetectionService : Service() {
             }
             
             val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager?.createNotificationChannel(channel)        }
+            notificationManager?.createNotificationChannel(channel)
+        }
     }
 
     private fun createPersistentNotification(): android.app.Notification {
@@ -109,6 +137,140 @@ class CameraDetectionService : Service() {
         }
     }
 
+    private fun registerScreenStateReceiver() {
+        try {
+            if (!isReceiverRegistered) {
+                val filter = IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
+                    addAction(Intent.ACTION_USER_PRESENT)
+                }
+                registerReceiver(screenStateReceiver, filter)
+                isReceiverRegistered = true
+                Log.d("CameraDetection", "Screen state receiver registered")
+            }
+        } catch (e: Exception) {
+            Log.e("CameraDetection", "Error registering screen state receiver: ${e.message}", e)
+        }
+    }
+
+    private fun unregisterScreenStateReceiver() {
+        try {
+            if (isReceiverRegistered) {
+                unregisterReceiver(screenStateReceiver)
+                isReceiverRegistered = false
+                Log.d("CameraDetection", "Screen state receiver unregistered")
+            }
+        } catch (e: Exception) {
+            Log.e("CameraDetection", "Error unregistering screen state receiver: ${e.message}", e)
+        }
+    }
+
+    private fun acquireWakeLockIfNeeded() {
+        try {
+            if (!ScreenStateReceiver.isScreenOn() && (wakeLock == null || !wakeLock!!.isHeld)) {
+                val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "GeoCamOff:CameraMonitoring"
+                ).apply {
+                    acquire(10 * 60 * 1000) // 10 minutes timeout
+                    Log.d("CameraDetection", "Wake lock acquired for background monitoring")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("CameraDetection", "Error acquiring wake lock: ${e.message}", e)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.let { wl ->
+                if (wl.isHeld) {
+                    wl.release()
+                    Log.d("CameraDetection", "Wake lock released")
+                }
+            }
+            wakeLock = null
+        } catch (e: Exception) {
+            Log.e("CameraDetection", "Error releasing wake lock: ${e.message}", e)
+        }
+    }
+
+    private fun optimizeForScreenOff() {
+        try {
+            Log.d("CameraDetection", "Optimizing camera detection for screen-off mode")
+            
+            // Acquire wake lock for continued operation
+            acquireWakeLockIfNeeded()
+            
+            // Ensure foreground service is running with high priority notification
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val notification = createEnhancedNotification("Background monitoring active (screen off)")
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            
+            // Re-register camera callback with enhanced monitoring
+            restartCameraDetection()
+            
+        } catch (e: Exception) {
+            Log.e("CameraDetection", "Error optimizing for screen off: ${e.message}", e)
+        }
+    }
+
+    private fun optimizeForUserPresent() {
+        try {
+            Log.d("CameraDetection", "Optimizing camera detection for user presence")
+            
+            // Release wake lock since user is active
+            releaseWakeLock()
+            
+            // Update notification to normal priority
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val notification = createPersistentNotification()
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            
+        } catch (e: Exception) {
+            Log.e("CameraDetection", "Error optimizing for user present: ${e.message}", e)
+        }
+    }
+
+    private fun restartCameraDetection() {
+        try {
+            // Stop existing monitoring
+            callback?.let { cb ->
+                cameraManager?.unregisterAvailabilityCallback(cb)
+            }
+            
+            // Restart with fresh callback
+            startCameraDetection()
+            
+            Log.d("CameraDetection", "Camera detection restarted")
+        } catch (e: Exception) {
+            Log.e("CameraDetection", "Error restarting camera detection: ${e.message}", e)
+        }
+    }
+
+    private fun createEnhancedNotification(customText: String): android.app.Notification {
+        val notificationIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, notificationIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Camera Security Active")
+            .setContentText(customText)
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setOngoing(true) // Makes notification persistent
+            .setPriority(NotificationCompat.PRIORITY_MAX) // Higher priority for screen-off
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setContentIntent(pendingIntent)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .build()
+    }
+
     override fun onCreate() {
         super.onCreate()
         Log.d("CameraDetection", "Service onCreate() called")        // Camera detection will be started in onStartCommand
@@ -138,6 +300,12 @@ class CameraDetectionService : Service() {
             callback = null
             cameraManager = null
         }
+        
+        // Unregister screen state receiver
+        unregisterScreenStateReceiver()
+        
+        // Release wake lock if held
+        releaseWakeLock()
         
         super.onDestroy()
     }

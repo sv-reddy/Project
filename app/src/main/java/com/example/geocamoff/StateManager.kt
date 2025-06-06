@@ -9,10 +9,19 @@ object StateManager {
     private var isCameraActive = false
     private var isAppInForeground = false
     private var isNotificationServiceRunning = false
+    private var isScreenOn = true // New: Track screen state
 
     fun setAppForegroundState(inForeground: Boolean) {
         isAppInForeground = inForeground
     }
+
+    fun setScreenState(screenOn: Boolean) {
+        isScreenOn = screenOn
+        android.util.Log.d("StateManager", "Screen state changed: ${if (screenOn) "ON" else "OFF"}")
+        // Screen state changes can affect background processing behavior
+    }
+
+    fun isScreenOn(): Boolean = isScreenOn
 
     fun updateGeofenceState(context: Context, inRestrictedZone: Boolean) {
         isInRestrictedZone = inRestrictedZone
@@ -97,10 +106,36 @@ object StateManager {
             }
         }
     }
-    
-    // Method to reset service state (call this when app starts)
+      // Method to reset service state (call this when app starts)
     fun resetServiceState() {
         isNotificationServiceRunning = false
         android.util.Log.d("StateManager", "Service state reset")
+    }
+    
+    // Method to restore state after boot (called by BootReceiver)
+    fun restoreAfterBoot(context: Context) {
+        try {
+            android.util.Log.d("StateManager", "Restoring state after boot")
+            
+            // Reset all states to safe defaults
+            isInRestrictedZone = false
+            isCameraActive = false
+            isAppInForeground = false
+            isNotificationServiceRunning = false
+            
+            // Check current location services status and treat as restricted if disabled
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+            val isLocationEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
+                                   locationManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
+            
+            if (!isLocationEnabled) {
+                android.util.Log.d("StateManager", "Location services disabled after boot - treating as restricted zone")
+                isInRestrictedZone = true
+            }
+            
+            android.util.Log.d("StateManager", "State restored after boot - Location services: $isLocationEnabled, In restricted zone: $isInRestrictedZone")
+        } catch (e: Exception) {
+            android.util.Log.e("StateManager", "Error restoring state after boot: ${e.message}", e)
+        }
     }
 }

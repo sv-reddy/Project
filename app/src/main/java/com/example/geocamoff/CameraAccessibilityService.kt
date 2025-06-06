@@ -2,17 +2,23 @@ package com.example.geocamoff
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.os.PowerManager
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import kotlinx.coroutines.*
 
-class CameraAccessibilityService : AccessibilityService() {    companion object {
+class CameraAccessibilityService : AccessibilityService() {
+
+    companion object {
         private var isServiceRunning = false
         
         fun isRunning(): Boolean = isServiceRunning
@@ -20,11 +26,45 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
     
     private var fusedLocationClient: FusedLocationProviderClient? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-      override fun onServiceConnected() {
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var isReceiverRegistered = false
+    
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    Log.d("CameraAccessibilityService", "Screen turned off - optimizing for background")
+                    StateManager.setScreenState(false)
+                    optimizeForScreenOff()
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    Log.d("CameraAccessibilityService", "Screen turned on - optimizing for foreground")
+                    StateManager.setScreenState(true)
+                    optimizeForScreenOn()
+                }
+                Intent.ACTION_USER_PRESENT -> {
+                    Log.d("CameraAccessibilityService", "User present - full optimization")
+                    StateManager.setScreenState(true)
+                    optimizeForUserPresent()
+                }
+            }
+        }
+    }
+    
+    override fun onServiceConnected() {
         super.onServiceConnected()
         isServiceRunning = true
         
         Log.d("CameraAccessibilityService", "Service connected and running")
+        
+        // Check if this is after a boot by seeing if StateManager needs restoration
+        try {
+            // Ensure state is properly restored after potential boot
+            StateManager.restoreAfterBoot(this)
+            Log.d("CameraAccessibilityService", "State restoration check completed")
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error during state restoration: ${e.message}", e)
+        }
         
         // Configure the accessibility service
         val info = AccessibilityServiceInfo().apply {
@@ -39,6 +79,9 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
         
         // Initialize location client
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        
+        // Register screen state receiver for power management
+        registerScreenStateReceiver()
         
         Log.d("CameraAccessibilityService", "Accessibility service configured for camera monitoring")
     }
@@ -241,19 +284,27 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
         } catch (e: Exception) {
             Log.e("CameraAccessibilityService", "Error closing camera app: ${e.message}", e)
         }
-    }
-      override fun onDestroy() {
+    }    override fun onDestroy() {
         super.onDestroy()
         isServiceRunning = false
         serviceScope.cancel()
+        
+        // Unregister screen state receiver
+        unregisterScreenStateReceiver()
+        
+        // Release wake lock if held
+        releaseWakeLock()
+        
+        // Stop background location updates
+        stopBackgroundLocationUpdates()
+        
         Log.d("CameraAccessibilityService", "Accessibility service destroyed")
     }
     
     override fun onInterrupt() {
         Log.d("CameraAccessibilityService", "Accessibility service interrupted")
     }
-    
-    private fun isLocationServicesEnabled(): Boolean {
+      private fun isLocationServicesEnabled(): Boolean {
         return try {
             val locationManager = ContextCompat.getSystemService(this, LocationManager::class.java)
             locationManager?.let { lm ->
@@ -264,6 +315,139 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
             Log.e("CameraAccessibilityService", "Error checking location services: ${e.message}", e)
             false
         }
+    }
+    
+    private fun registerScreenStateReceiver() {
+        try {
+            if (!isReceiverRegistered) {
+                val filter = IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
+                    addAction(Intent.ACTION_USER_PRESENT)
+                }
+                registerReceiver(screenStateReceiver, filter)
+                isReceiverRegistered = true
+                Log.d("CameraAccessibilityService", "Screen state receiver registered")
+            }
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error registering screen state receiver: ${e.message}", e)
+        }
+    }
+    
+    private fun unregisterScreenStateReceiver() {
+        try {
+            if (isReceiverRegistered) {
+                unregisterReceiver(screenStateReceiver)
+                isReceiverRegistered = false
+                Log.d("CameraAccessibilityService", "Screen state receiver unregistered")
+            }
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error unregistering screen state receiver: ${e.message}", e)
+        }
+    }
+    
+    private fun optimizeForScreenOff() {
+        try {
+            Log.d("CameraAccessibilityService", "Optimizing accessibility service for screen-off mode")
+            
+            // Acquire wake lock for continued operation
+            acquireWakeLockIfNeeded()
+            
+            // Request background location updates if needed
+            requestBackgroundLocationUpdates()
+            
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error optimizing for screen off: ${e.message}", e)
+        }
+    }
+    
+    private fun optimizeForScreenOn() {
+        try {
+            Log.d("CameraAccessibilityService", "Optimizing accessibility service for screen-on mode")
+            
+            // Can reduce wake lock usage since user is potentially active
+            // but keep some background capability
+            
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error optimizing for screen on: ${e.message}", e)
+        }
+    }
+    
+    private fun optimizeForUserPresent() {
+        try {
+            Log.d("CameraAccessibilityService", "Optimizing accessibility service for user presence")
+            
+            // Release wake lock since user is active
+            releaseWakeLock()
+            
+            // Stop background location updates
+            stopBackgroundLocationUpdates()
+            
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error optimizing for user present: ${e.message}", e)
+        }
+    }
+    
+    private fun acquireWakeLockIfNeeded() {
+        try {
+            if (wakeLock == null || !wakeLock!!.isHeld) {
+                val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "GeoCamOff:AccessibilityService"
+                ).apply {
+                    acquire(15 * 60 * 1000) // 15 minutes timeout
+                    Log.d("CameraAccessibilityService", "Wake lock acquired for background operation")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error acquiring wake lock: ${e.message}", e)
+        }
+    }
+    
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.let { wl ->
+                if (wl.isHeld) {
+                    wl.release()
+                    Log.d("CameraAccessibilityService", "Wake lock released")
+                }
+            }
+            wakeLock = null
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error releasing wake lock: ${e.message}", e)
+        }
+    }
+    
+    private fun requestBackgroundLocationUpdates() {
+        try {
+            // Request more frequent location updates for better accuracy when screen is off
+            val locationRequest = LocationRequest.create().apply {
+                interval = 30000 // 30 seconds
+                fastestInterval = 15000 // 15 seconds
+                priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            }
+            
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                fusedLocationClient?.requestLocationUpdates(locationRequest, object : LocationCallback() {
+                    override fun onLocationResult(locationResult: LocationResult) {
+                        // Update location cache for better camera detection
+                        Log.d("CameraAccessibilityService", "Background location update received")
+                    }
+                }, null)
+                Log.d("CameraAccessibilityService", "Background location updates requested")
+            }
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error requesting background location updates: ${e.message}", e)
+        }
+    }
+    
+    private fun stopBackgroundLocationUpdates() {
+        try {
+            fusedLocationClient?.removeLocationUpdates(object : LocationCallback() {})
+            Log.d("CameraAccessibilityService", "Background location updates stopped")
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error stopping background location updates: ${e.message}", e)        }
     }
 }
 
