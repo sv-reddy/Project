@@ -65,22 +65,24 @@ class StatusFragment : Fragment() {
 
     private fun updateLocationUI(location: Location) {
         if (!isAdded || activity == null) return // Prevent crash if fragment/activity is not attached
-        
-        val currentPoint = LatLngPoint(location.latitude, location.longitude)
+          val currentPoint = LatLngPoint(location.latitude, location.longitude)
         val polygonGeofences = RestrictedAreaLoader.loadRestrictedAreas(requireContext())
+        
         val inside = polygonGeofences.firstOrNull { geofence ->
             PolygonGeofenceUtils.isInsidePolygonGeofence(currentPoint, geofence)
         }
-          try {
-            val accessibilityStatus = if (CameraAccessibilityService.isRunning()) "✅ Active" else "❌ Not Running"
+        
+        try {
+            val accessibilityStatus = if (CameraAccessibilityService.isRunning()) 
+                getString(R.string.accessibility_status_active) 
+            else 
+                getString(R.string.accessibility_status_not_running)
             
             if (inside != null) {
-                statusText.text = getString(R.string.status_restricted_zone, inside.name) + 
-                    "\n\nAccessibility Service: $accessibilityStatus"
+                statusText.text = getString(R.string.status_restricted_zone_with_accessibility, inside.name, accessibilityStatus)
                 StateManager.updateGeofenceState(requireContext(), true)
             } else {
-                statusText.text = getString(R.string.status_not_restricted, currentPoint.latitude, currentPoint.longitude) + 
-                    "\n\nAccessibility Service: $accessibilityStatus"
+                statusText.text = getString(R.string.status_not_restricted_with_accessibility, currentPoint.latitude, currentPoint.longitude, accessibilityStatus)
                 StateManager.updateGeofenceState(requireContext(), false)
             }
         } catch (e: Exception) {

@@ -8,11 +8,14 @@ Please grant them in the next steps.</string>
       <!-- Polygon Geofence Display Strings -->
     <string name="polygon_center_format">Center: %1$.4f, %2$.4f</string>
     <string name="polygon_area_format">Area: %1$.2f sq km</string>
-    <string name="polygon_points_format">Boundary Points: %1$d</string>
-      <!-- Status Fragment Strings -->
+    <string name="polygon_points_format">Boundary Points: %1$d</string>    <!-- Status Fragment Strings -->
     <string name="status_restricted_zone">Current Area: %1$s\nStatus: RESTRICTED ZONE\nType: Polygon Boundary</string>
     <string name="status_not_restricted">Current Area: %1$.6f, %2$.6f\nStatus: Not Restricted\nType: Polygon Detection</string>
-    <string name="status_error">Error updating overlay: %1$s</string>    <string name="overlay_permission_required">Overlay permission required. Tap to grant.</string>
+    <string name="status_error">Error updating overlay: %1$s</string>
+    <string name="status_restricted_zone_with_accessibility">Current Area: %1$s\nStatus: RESTRICTED ZONE\nType: Polygon Boundary\n\nAccessibility Service: %2$s</string>
+    <string name="status_not_restricted_with_accessibility">Current Area: %1$.6f, %2$.6f\nStatus: Not Restricted\nType: Polygon Detection\n\nAccessibility Service: %3$s</string>
+    <string name="accessibility_status_active">✅ Active</string>
+    <string name="accessibility_status_not_running">❌ Not Running</string><string name="overlay_permission_required">Overlay permission required. Tap to grant.</string>
     <string name="location_permission_not_granted">Location permission not granted</string>
     <string name="unable_to_get_location">Unable to get location</string>
     <string name="accessibility_service_description">Camera Detection Service - Monitors for camera usage in restricted areas and automatically closes camera apps when in prohibited zones. This service provides persistent monitoring even when the app is closed.</string>
