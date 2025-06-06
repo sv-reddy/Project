@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationManager
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.content.ContextCompat
@@ -117,10 +118,18 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
 
         return packageMatch || classMatch || keywordMatch
     }
-    
-    private fun handleCameraDetection(appName: String) {
+      private fun handleCameraDetection(appName: String) {
         serviceScope.launch {
-            try {                val location = getCurrentLocation()
+            try {
+                // First check if location services are enabled
+                if (!isLocationServicesEnabled()) {
+                    Log.w("CameraAccessibilityService", "Location services disabled - treating as restricted zone")
+                    showCameraAlert(appName)
+                    closeCameraApp()
+                    return@launch
+                }
+                
+                val location = getCurrentLocation()
                 if (location != null) {
                     val restrictedAreas = RestrictedAreaLoader.loadRestrictedAreas(this@CameraAccessibilityService)
                     val isInRestrictedArea = restrictedAreas.any { area ->
@@ -139,7 +148,9 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
                         Log.d("CameraAccessibilityService", "Camera detected but not in restricted area")
                     }
                 } else {
-                    Log.w("CameraAccessibilityService", "Could not get location for camera detection")
+                    Log.w("CameraAccessibilityService", "Could not get location for camera detection - treating as restricted zone")
+                    showCameraAlert(appName)
+                    closeCameraApp()
                 }
             } catch (e: Exception) {
                 Log.e("CameraAccessibilityService", "Error handling camera detection: ${e.message}", e)
@@ -240,6 +251,19 @@ class CameraAccessibilityService : AccessibilityService() {    companion object 
     
     override fun onInterrupt() {
         Log.d("CameraAccessibilityService", "Accessibility service interrupted")
+    }
+    
+    private fun isLocationServicesEnabled(): Boolean {
+        return try {
+            val locationManager = ContextCompat.getSystemService(this, LocationManager::class.java)
+            locationManager?.let { lm ->
+                lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || 
+                lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            } ?: false
+        } catch (e: Exception) {
+            Log.e("CameraAccessibilityService", "Error checking location services: ${e.message}", e)
+            false
+        }
     }
 }
 

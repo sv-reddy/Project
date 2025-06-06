@@ -17,5 +17,6 @@ Please grant them in the next steps.</string>
     <string name="accessibility_status_active">✅ Active</string>    <string name="accessibility_status_not_running">❌ Not Running</string>
     <string name="location_permission_not_granted">Location permission not granted</string>
     <string name="unable_to_get_location">Unable to get location</string>
+    <string name="location_services_disabled">Please turn on the location to gain access</string>
     <string name="accessibility_service_description">Camera Detection Service - Monitors for camera usage in restricted areas and automatically closes camera apps when in prohibited zones. This service provides persistent monitoring even when the app is closed.</string>
 </resources>

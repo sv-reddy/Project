@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
 import android.view.LayoutInflater
@@ -11,6 +12,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.google.android.gms.location.*
 
@@ -27,10 +29,16 @@ class StatusFragment : Fragment() {
         
         requestLocationUpdate()
         return view
-    }
-
-    private fun requestLocationUpdate() {
+    }    private fun requestLocationUpdate() {
         if (!isAdded) return // Prevent crash if fragment is not attached
+        
+        // Check if location services are enabled
+        if (!isLocationServicesEnabled()) {
+            statusText.text = getString(R.string.location_services_disabled)
+            // Treat disabled location services as being in a restricted zone
+            StateManager.updateGeofenceState(requireContext(), true)
+            return
+        }
         
         if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
             ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -75,6 +83,18 @@ class StatusFragment : Fragment() {
             }
         } catch (e: Exception) {
             statusText.text = getString(R.string.status_error, e.localizedMessage ?: "Unknown error")
+        }
+    }
+    
+    private fun isLocationServicesEnabled(): Boolean {
+        return try {
+            val locationManager = ContextCompat.getSystemService(requireContext(), LocationManager::class.java)
+            locationManager?.let { lm ->
+                lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || 
+                lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            } ?: false
+        } catch (e: Exception) {
+            false
         }
     }
 }
