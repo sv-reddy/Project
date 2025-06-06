@@ -71,13 +71,16 @@ class StatusFragment : Fragment() {
         val inside = polygonGeofences.firstOrNull { geofence ->
             PolygonGeofenceUtils.isInsidePolygonGeofence(currentPoint, geofence)
         }
-        
-        try {
+          try {
+            val accessibilityStatus = if (CameraAccessibilityService.isRunning()) "✅ Active" else "❌ Not Running"
+            
             if (inside != null) {
-                statusText.text = getString(R.string.status_restricted_zone, inside.name)
+                statusText.text = getString(R.string.status_restricted_zone, inside.name) + 
+                    "\n\nAccessibility Service: $accessibilityStatus"
                 StateManager.updateGeofenceState(requireContext(), true)
             } else {
-                statusText.text = getString(R.string.status_not_restricted, currentPoint.latitude, currentPoint.longitude)
+                statusText.text = getString(R.string.status_not_restricted, currentPoint.latitude, currentPoint.longitude) + 
+                    "\n\nAccessibility Service: $accessibilityStatus"
                 StateManager.updateGeofenceState(requireContext(), false)
             }
         } catch (e: Exception) {

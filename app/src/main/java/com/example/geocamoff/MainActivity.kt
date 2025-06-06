@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.TextUtils
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -53,10 +54,10 @@ class MainActivity : AppCompatActivity() {    companion object {
         findViewById<View>(android.R.id.content).postDelayed({
             requestBatteryOptimizationExemption()
         }, 3000)
-        
-        // Add a delay and recheck permissions (for debugging)
+          // Add a delay and recheck permissions (for debugging)
         findViewById<View>(android.R.id.content).postDelayed({
             checkAllPermissions()
+            checkAccessibilityServiceStatus()
         }, 2000)
     }
 
@@ -263,37 +264,8 @@ class MainActivity : AppCompatActivity() {    companion object {
 
     private fun openFragment(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
-            .replace(R.id.nav_host_fragment, fragment)
-            .commit()
-    }    override fun onResume() {
-        super.onResume()
-        Log.d("MainActivity", "onResume() - stopping camera detection service and starting foreground detection")
-        
-        // Notify StateManager that app is in foreground
-        StateManager.setAppForegroundState(true)
-        
-        // Stop camera detection service when app is in foreground
-        try {
-            val stopIntent = Intent(this, CameraDetectionService::class.java).apply {
-                action = "STOP_SERVICE"
-            }
-            startService(stopIntent)
-        } catch (e: Exception) {
-            Log.w("MainActivity", "Error stopping CameraDetectionService: ${e.message}", e)
-        }
-        
-        // Start foreground camera detection
-        startForegroundCameraDetection()        
-        if (intent?.getBooleanExtra("start_overlay", false) == true) {
-            try {
-                val overlayIntent = Intent(this, OverlayService::class.java)
-                startService(overlayIntent)
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error starting OverlayService: ${e.message}", e)
-            }
-            intent.removeExtra("start_overlay")
-        }
-    }    override fun onPause() {
+            .replace(R.id.nav_host_fragment, fragment)            .commit()
+    }override fun onPause() {
         super.onPause()
         Log.d("MainActivity", "onPause() - stopping foreground detection and starting camera detection service")
         
@@ -382,9 +354,109 @@ class MainActivity : AppCompatActivity() {    companion object {
             }
         } else {
             Log.d("MainActivity", "App already exempted from battery optimization")
+        }    }
+      private fun checkAccessibilityServiceStatus() {
+        val isEnabled = isAccessibilityServiceEnabled()
+        val isRunning = CameraAccessibilityService.isRunning()
+        Log.d("MainActivity", "Accessibility Service Status: ${if (isEnabled) "ENABLED" else "DISABLED"}")
+        Log.d("MainActivity", "Accessibility Service Running: ${if (isRunning) "YES" else "NO"}")
+        
+        if (!isEnabled) {
+            Log.d("MainActivity", "Accessibility service not enabled, showing setup dialog")
+            showAccessibilityServiceSetupDialog()
+        } else if (!isRunning) {
+            Log.w("MainActivity", "Accessibility service enabled but not running")
+            Toast.makeText(this, "Accessibility service enabled but not running. Try restarting the app.", Toast.LENGTH_LONG).show()
+        } else {
+            Log.d("MainActivity", "Accessibility service is enabled and running")
         }
     }
 
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val accessibilityManager = getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        )
+        
+        val serviceName = "${packageName}/${CameraAccessibilityService::class.java.name}"
+        
+        return !TextUtils.isEmpty(enabledServices) && 
+               enabledServices.contains(serviceName)
+    }
+
+    private fun showAccessibilityServiceSetupDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Enable Accessibility Service")
+            .setMessage("For the most reliable camera detection, enable the Camera Detection accessibility service.\n\n" +
+                       "This provides:\n" +
+                       "• Persistent monitoring even when app is closed\n" +
+                       "• Automatic camera app detection\n" +
+                       "• System-level monitoring\n\n" +
+                       "Steps:\n" +
+                       "1. Tap 'Open Settings' below\n" +
+                       "2. Find 'geocamoff' in the list\n" +
+                       "3. Enable the service\n" +
+                       "4. Grant permissions when prompted")
+            .setPositiveButton("Open Settings") { _, _ ->
+                openAccessibilitySettings()
+            }
+            .setNegativeButton("Skip") { dialog, _ ->
+                dialog.dismiss()
+                Toast.makeText(this, "App will use traditional monitoring (less reliable)", Toast.LENGTH_LONG).show()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun openAccessibilitySettings() {
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
+            
+            Toast.makeText(this, "Look for 'geocamoff' in the accessibility services list", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error opening accessibility settings: ${e.message}", e)
+            Toast.makeText(this, "Could not open accessibility settings", Toast.LENGTH_SHORT).show()
+        }
+    }    override fun onResume() {
+        super.onResume()
+        Log.d("MainActivity", "onResume() - stopping camera detection service and starting foreground detection")
+        
+        // Notify StateManager that app is in foreground
+        StateManager.setAppForegroundState(true)
+        
+        // Stop camera detection service when app is in foreground
+        try {
+            val stopIntent = Intent(this, CameraDetectionService::class.java).apply {
+                action = "STOP_SERVICE"
+            }
+            startService(stopIntent)
+        } catch (e: Exception) {
+            Log.w("MainActivity", "Error stopping CameraDetectionService: ${e.message}", e)
+        }
+        
+        // Start foreground camera detection
+        startForegroundCameraDetection()
+        
+        // Handle overlay service start intent
+        if (intent?.getBooleanExtra("start_overlay", false) == true) {
+            try {
+                val overlayIntent = Intent(this, OverlayService::class.java)
+                startService(overlayIntent)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error starting OverlayService: ${e.message}", e)
+            }
+            intent.removeExtra("start_overlay")
+        }
+        
+        // Check accessibility service status when resuming
+        findViewById<View>(android.R.id.content).postDelayed({
+            checkAccessibilityServiceStatus()
+        }, 1000)
+    }
+    
     override fun onDestroy() {
         super.onDestroy()
         stopForegroundCameraDetection()
